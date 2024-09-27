@@ -10,7 +10,6 @@ The Pervasive Displays Library Suite is specifically designed for the [Pervasive
 
 The **PDLS_EXT3_Basic_Fast** supports the screens
 
-* iTC [monochrome screens with embedded fast update](https://www.pervasivedisplays.com/products/?_sft_etc_itc=pu) (film `PS`);
 * iTC [monochrome screens with wide temperature and embedded fast update](https://www.pervasivedisplays.com/products/?_sft_etc_itc=pu&_sft_temperature_range=m15c-to-p60c) (film `KS`). 
 
 the boards
