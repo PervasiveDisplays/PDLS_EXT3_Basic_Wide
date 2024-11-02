@@ -1,20 +1,24 @@
 ///
-/// @file Common_Persistent.ino
-/// @brief Example of features for basic edition
+/// @file Common_Speed.ino
+/// @brief Protocol for speed test
 ///
 /// @details Project Pervasive Displays Library Suite
 /// @n Based on highView technology
 ///
 /// @author Rei Vilo
-/// @date 21 Jan 2023
-/// @version 704
+/// @date 21 Mar 2024
+/// @version 801
 ///
 /// @copyright (c) Rei Vilo, 2010-2024
 /// @copyright Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 /// @copyright For exclusive use with Pervasive Displays screens
 ///
-/// @see ReadMe.txt for references
+/// @see ReadMe.md for references
 /// @n
+///
+/// Release 542: First release
+/// Release 604: Global and fast variants
+/// Release 702: Added xE2150KS0Jx and xE2152KS0Jx
 ///
 
 // Screen
@@ -34,7 +38,7 @@
 
 // Define structures and classes
 
-// Define variables and constants
+// Define constants and variables
 Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_KS_09, boardRaspberryPiPico_RP2040);
 
 // Prototypes
@@ -56,27 +60,44 @@ void wait(uint8_t second)
 
 // Functions
 ///
-/// @brief Who am i? test screen
+/// @brief Perform the speed test
 ///
-void displayPersistent()
+void performTest()
 {
+    uint32_t chrono;
+
+    myScreen.clear();
     myScreen.setOrientation(ORIENTATION_LANDSCAPE);
-    myScreen.selectFont(Font_Terminal8x12);
-    uint16_t dy = myScreen.characterSizeY();
-    uint16_t y = 4;
 
-    myScreen.gText(4, y, myScreen.WhoAmI());
-    y += dy;
+    uint16_t x = myScreen.screenSizeX();
+    uint16_t y = myScreen.screenSizeY();
+    uint16_t dx = 0;
+    uint16_t dy = 0;
+    uint16_t dz = y / 2;
+    String text = "";
 
-    myScreen.gText(4, y, formatString("%i x %i", myScreen.screenSizeX(), myScreen.screenSizeY()));
-    y += dy;
+    myScreen.selectFont(Font_Terminal12x16);
 
-    myScreen.gText(4, y, formatString("PDLS %s v%i.%i.%i", SCREEN_EPD_EXT3_VARIANT, SCREEN_EPD_EXT3_RELEASE / 100, (SCREEN_EPD_EXT3_RELEASE / 10) % 10, SCREEN_EPD_EXT3_RELEASE % 10));
-    y += dy;
-    y += dy;
+    // 0
+    dy = (dz - myScreen.characterSizeY()) / 2;
+    text = myScreen.WhoAmI() + " - " + String(SCREEN_EPD_EXT3_RELEASE);
+    mySerial.println(text);
+    dx = (x - myScreen.stringSizeX(text)) / 2;
+    myScreen.gText(dx, dy, text);
+    myScreen.dRectangle(0, dz * 0, x, dz, myColours.black);
 
-    myScreen.selectFont(Font_Terminal6x8);
-    myScreen.gText(4, y, "Unplug when the LED is on");
+    chrono = millis();
+    myScreen.flush();
+    chrono = millis() - chrono;
+
+    // 1
+    dy += dz;
+    text = formatString("Global update= %i ms", chrono);
+    // text = formatString("Fast update= %i ms", chrono);
+    mySerial.println(text);
+    dx = (x - myScreen.stringSizeX(text)) / 2;
+    myScreen.gText(dx, dy, text);
+    myScreen.dRectangle(0, dz * 1, x, dz, myColours.black);
 
     myScreen.flush();
 }
@@ -90,35 +111,24 @@ void setup()
     // mySerial = Serial by default, otherwise edit hV_HAL_Peripherals.h
     mySerial.begin(115200);
     delay(500);
-
     mySerial.println();
     mySerial.println("=== " __FILE__);
     mySerial.println("=== " __DATE__ " " __TIME__);
     mySerial.println();
 
-    pinMode(LED_BUILTIN, OUTPUT);
-    for (uint8_t i = 1; i < 7; i += 1)
-    {
-        digitalWrite(LED_BUILTIN, i % 2);
-        delay(250);
-    }
-
     mySerial.println("begin... ");
     myScreen.begin();
     mySerial.println(formatString("%s %ix%i", myScreen.WhoAmI().c_str(), myScreen.screenSizeX(), myScreen.screenSizeY()));
 
-    mySerial.println("Who Am I... ");
+    mySerial.println("Speed... ");
     myScreen.clear();
-    displayPersistent();
-    wait(2);
+    performTest();
+    wait(8);
 
-    /*
-      // To clear the screen
-      myScreen.clear();
-      myScreen.flush();
-    */
+    mySerial.println("White... ");
+    myScreen.clear();
+    myScreen.flush();
 
-    digitalWrite(LED_BUILTIN, HIGH);
     mySerial.println("=== ");
     mySerial.println();
 }

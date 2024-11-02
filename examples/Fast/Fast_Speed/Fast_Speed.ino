@@ -39,8 +39,6 @@
 // Define structures and classes
 
 // Define constants and variables
-// Define constants and variables
-// Screen_EPD_EXT3 myScreen(eScreen_EPD_271_CS_09, boardRaspberryPiPico_RP2040);
 Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_KS_09, boardRaspberryPiPico_RP2040);
 
 // Prototypes
