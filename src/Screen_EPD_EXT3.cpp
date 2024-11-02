@@ -38,6 +38,7 @@
 // Release 804: Improved power management
 // Release 805: Improved stability
 // Release 806: New library for Wide temperature only
+// Release 808: Improved stability
 //
 
 // Library header
@@ -107,7 +108,6 @@ typedef struct
     COG_SOFT_START_DEF SS[4];
 } COG_OTP_USER_DATA;
 
-// Non re-entrant
 COG_OTP_USER_DATA COG_userData;
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
@@ -143,7 +143,7 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
 
     // Read OTP
     uint8_t ui8 = 0;
-    uint16_t _readBytes = 0;
+    uint16_t _readBytes = 128;
     u_flagOTP = false;
     uint8_t COG_initialData[128] = {0};
 
@@ -167,8 +167,9 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
     // End of OTP reading
     digitalWrite(b_pin.panelCS, HIGH); // Unselect
 
-    uint8_t _chipID = 0x16;
-    if (COG_initialData[0] == _chipID)
+    // Check
+    uint8_t _chipId = 0x16;
+    if (COG_initialData[0] == _chipId)
     {
         COG_userData.LAYOUTREV = COG_initialData[0x00];
         COG_userData.COG_TYPE = COG_initialData[0x01];
@@ -213,21 +214,14 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
             COG_userData.SS[i].DELAY_RESERVE = COG_initialData[0x28 + (8 * i) + 7];
         }
         // i = sOK;
-        mySerial.println("hV . OTP check passed");
-        u_flagOTP = true;
-    }
-    else
-    {
-        mySerial.println();
-        mySerial.println(formatString("hV * OTP check failed - First byte 0x%02x, expected 0x%04x", COG_data[0x00], _chipId));
-        while (0x01);
+        // u_flagOTP = true;
     }
 }
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_initial(uint8_t updateMode)
 {
     uint8_t workDCTL[2];
-    workDCTL[0] = COG_data[0x10]; // DCTL
+    workDCTL[0] = COG_userData.DCTL; // DCTL
     workDCTL[1] = 0x00;
 
     // FILM_K already checked
@@ -311,7 +305,7 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_update(uint8_t updateMode)
     {
         iPH[0] = COG_userData.SS[value].PHLINI_BSTSWa;
         iPH[1] = COG_userData.SS[value].PHHINI_BSTSWb;
-        if (COG_userData.SS[value].FORMAT_REPEAT & 0x80) // format1
+        if (COG_userData.SS[value].FORMAT_REPEAT & 0x80) // Format 1
         {
             for (iREP = 0; iREP < (COG_userData.SS[value].FORMAT_REPEAT & 0x7f); iREP++)
             {
@@ -328,7 +322,7 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_update(uint8_t updateMode)
                 delayMicroseconds(10 * COG_userData.SS[value].DELAY_RESERVE & 0x7f); // 10us
             }
         }
-        else // format2
+        else // Format 2
         {
             for (iREP = 0; iREP < (COG_userData.SS[value].FORMAT_REPEAT & 0x7f); iREP++)
             {
@@ -384,12 +378,12 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_powerOff()
     b_sendIndexData(0x09, data55, 1);
 
     // b_waitBusy(HIGH); // added
-
-    // digitalWrite(b_pin.panelDC, LOW);
-    // digitalWrite(b_pin.panelCS, LOW);
-    // digitalWrite(b_pin.panelReset, LOW);
+/*
+    digitalWrite(b_pin.panelDC, LOW);
+    digitalWrite(b_pin.panelCS, LOW);
+    digitalWrite(b_pin.panelReset, LOW);
     // digitalWrite(panelON_PIN, LOW); // PANEL_OFF# = 0
-
+*/
     digitalWrite(b_pin.panelCS, HIGH); // CS# = 1
 }
 //
