@@ -48,7 +48,7 @@
 ///
 /// @brief Release
 ///
-#define hV_LIST_BOARDS_RELEASE 805
+#define hV_LIST_BOARDS_RELEASE 806
 
 ///
 /// @brief Not connected pin
@@ -144,8 +144,8 @@ const pins_t boardFeatherNRF52840 =
     .panelCS = 9, ///< EXT3 and EXT3.1 pin 9 Grey -> D9 GPIO9
     .panelCSS = NOT_CONNECTED, ///< EXT3 and EXT3.1 pin 12 Grey2
     .flashCSS = NOT_CONNECTED, ///< EXT3 pin 20 or EXT3.1 pin 11 Black2
-    .touchInt = 5, ///< EXT3-Touch pin 3 Red -> D5 GPIO5
-    .touchReset = 6, ///< EXT3-Touch pin 4 Orange -> D6 GPIO6
+    .touchInt = NOT_CONNECTED, ///< EXT3-Touch pin 3 Red -> D5 GPIO5
+    .touchReset = NOT_CONNECTED, ///< EXT3-Touch pin 4 Orange -> D6 GPIO6
     .panelPower = NOT_CONNECTED, ///< Optional power circuit
     .cardCS = NOT_CONNECTED, ///< Separate SD-card board
     .cardDetect = NOT_CONNECTED, ///< Separate SD-card board

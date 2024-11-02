@@ -13,7 +13,7 @@
 // For exclusive use with Pervasive Displays screens
 // Portions (c) Pervasive Displays, 2010-2024
 //
-// Release 509: Added eScreen_EPD_EXT3_271_Fast
+// Release 509: Added support for 271_PS_09
 // Release 527: Added support for ESP32 PSRAM
 // Release 541: Improved support for ESP32
 // Release 550: Tested Xiao ESP32-C3 with SPI exception
@@ -26,18 +26,17 @@
 // Release 610: Removed partial update
 // Release 700: Refactored screen and board functions
 // Release 701: Improved functions names consistency
-// Release 701: Added support for eScreen_EPD_EXT3_290_0F_Wide xE2290KS0Fx
-// Release 702: Added support for eScreen_EPD_EXT3_206_0E_Wide xE2206KS0Ex
-// Release 703: Added support for eScreen_EPD_EXT3_152_0J_Wide xE2152KS0Jx
+// Release 701: Added support for 290_KS_0F
+// Release 702: Added support for 206_KS_0E
+// Release 703: Added support for 152_KS_0J
 // Release 800: Read OTP memory
 // Release 801: Improved OTP implementation
-// Release 802: Added support for 343-KS-0B xE2343PS0Bx
+// Release 802: Added support for 343_KS_0B
 // Release 802: Added references to application notes
 // Release 802: Refactored CoG functions
 // Release 803: Added types for string and frame-buffer
 // Release 804: Improved power management
 // Release 805: Improved stability
-// Release 806: Added Wire debugging
 // Release 806: New library for Wide temperature only
 //
 
@@ -55,323 +54,17 @@
 /// * ApplicationNote_DualChip_wideTemperature_EPD_v01_20230804
 /// * ApplicationNote_SingleChip_wideTemperature_EPD_v01_20230720
 //
-// Use of delay in µs before and after SPI
-// 0 = no, 1..500 = yes; recommended = 1
-#define USE_DELAY_US 1
 
 //
-// --- Large screens with K or P film
-//
-void Screen_EPD_EXT3_Fast::COG_LargeK_reset()
-{
-    b_reset(200, 2, 4, 20, 5); // large
-}
-
-void Screen_EPD_EXT3_Fast::COG_LargeK_getDataOTP()
-{
-    // Application note § none
-    // Application note § 1.5 Read MTP data
-    // Application note § 1.6 Read MTP data
-    uint16_t _readBytes = 0;
-    uint8_t ui8 = 0; // dummy
-    u_flagOTP = false;
-
-    COG_LargeK_reset();
-    if (b_family == FAMILY_LARGE)
-    {
-        digitalWrite(b_pin.panelCSS, HIGH); // Unselect slave panel
-    }
-
-    // Read OTP
-    switch (u_codeDriver)
-    {
-        case DRIVER_B:
-
-            _readBytes = 128;
-
-            digitalWrite(b_pin.panelDC, LOW); // Command
-            digitalWrite(b_pin.panelCS, LOW); // Select
-            hV_HAL_SPI3_write(0xb9);
-            delay(5);
-            break;
-
-        default:
-
-            mySerial.println();
-            mySerial.println(formatString("hV * OTP failed for screen %i-%cS-0%c", u_codeSize, u_codeFilm, u_codeDriver));
-            while (0x01);
-            break;
-    }
-
-    digitalWrite(b_pin.panelDC, HIGH); // Data
-    ui8 = hV_HAL_SPI3_read(); // Dummy
-
-    // Populate COG_data
-    for (uint16_t index = 0; index < _readBytes; index += 1)
-    {
-        COG_data[index] = hV_HAL_SPI3_read(); // Read OTP
-    }
-
-    // End of OTP reading
-    digitalWrite(b_pin.panelCS, HIGH); // Unselect
-
-    // Check
-    if (u_codeDriver == DRIVER_B)
-    {
-        // No check for DRIVER_B
-    }
-
-    u_flagOTP = true;
-#if (DEBUG_OTP == 1) // Debug COG_data
-    debugOTP(COG_data, _readBytes, COG_LARGE_KP);
-#endif // DEBUG_OTP
-}
-
-void Screen_EPD_EXT3_Fast::COG_LargeK_initial(uint8_t updateMode)
-{
-    // Application note § 3.1 Initial flow chart
-
-    // COG_LargeK_reset();
-
-    // if (u_codeDriver == DRIVER_B)
-    // {
-    //     b_sendCommandDataSelect8(0x01, COG_data[0x10], PANEL_CS_BOTH); // DCTL
-    // }
-    uint8_t workDCTL[2];
-    workDCTL[0] = COG_data[0x10]; // DCTL
-    workDCTL[1] = 0x00;
-
-    // FILM_K already checked
-    // b_sendIndexDataSelect(0x01, workDCTL, 1, PANEL_CS_BOTH); // Wide
-    b_sendCommandDataSelect8(0x01, COG_data[0x10], PANEL_CS_BOTH); // Wide
-}
-
-void Screen_EPD_EXT3_Fast::COG_LargeK_sendImageData(uint8_t updateMode)
-{
-    // 9.69 and 11.98 combine two half-screens, hence two frames with adjusted (u_pageColourSize >> 1) size
-    uint32_t u_subPageColourSize = (u_pageColourSize >> 1);
-
-    FRAMEBUFFER_TYPE nextBuffer = s_newImage;
-    FRAMEBUFFER_TYPE previousBuffer = s_newImage + u_pageColourSize;
-
-    // Application note § 4. Input image to the EPD
-    // Application note § 3.2 Send image to the EPD
-    // Send image data
-    b_sendIndexDataSelect(0x13, &COG_data[0x15], 6, PANEL_CS_BOTH); // DUW
-    b_sendIndexDataSelect(0x90, &COG_data[0x0c], 4, PANEL_CS_BOTH); // DRFW
-
-    // Master
-    b_sendIndexDataSelect(0x12, &COG_data[0x12], 3, PANEL_CS_MASTER); // RAM_RW
-    b_sendIndexDataSelect(0x10, nextBuffer, u_subPageColourSize, PANEL_CS_MASTER); // First frame
-
-    b_sendIndexDataSelect(0x12, &COG_data[0x12], 3, PANEL_CS_MASTER); // RAM_RW
-    switch (updateMode)
-    {
-        case UPDATE_GLOBAL:
-
-            b_sendIndexFixedSelect(0x11, 0x00, u_subPageColourSize, PANEL_CS_MASTER); // Second frame = dummy
-            break;
-
-        case UPDATE_FAST:
-
-            b_sendIndexDataSelect(0x11, previousBuffer, u_subPageColourSize, PANEL_CS_MASTER); // Second frame
-            break;
-    }
-
-    // Slave
-    b_sendIndexDataSelect(0x12, &COG_data[0x12], 3, PANEL_CS_SLAVE); // RAM_RW
-    b_sendIndexDataSelect(0x10, nextBuffer + u_subPageColourSize, u_subPageColourSize, PANEL_CS_SLAVE); // First frame
-
-    b_sendIndexDataSelect(0x12, &COG_data[0x12], 3, PANEL_CS_SLAVE); // RAM_RW
-    switch (updateMode)
-    {
-        case UPDATE_GLOBAL:
-
-            b_sendIndexFixedSelect(0x11, 0x00, u_subPageColourSize, PANEL_CS_SLAVE); // Second frame = dummy
-            break;
-
-        case UPDATE_FAST:
-
-            b_sendIndexDataSelect(0x11, previousBuffer + u_subPageColourSize, u_subPageColourSize, PANEL_CS_SLAVE); // Second frame
-            break;
-    }
-
-    // Copy next frame to previous frame
-#if (SRAM_MODE == USE_INTERNAL_MCU)
-    memcpy(previousBuffer, nextBuffer, u_pageColourSize); // Copy displayed next to previous
-#elif (SRAM_MODE == USE_EXTERNAL_SPI)
-    myBufferSRAM.copyMemory(previousBuffer, nextBuffer, u_pageColourSize);
-#endif // SRAM_MODE
-}
-
-void Screen_EPD_EXT3_Fast::COG_LargeK_update(uint8_t updateMode)
-{
-    // Application note § 3.1 Initial flow chart
-    // Application note § 3.3 DC/DC soft-start
-    // Application note § 4. Send updating command
-    // Initial COG
-    b_sendCommandDataSelect8(0x05, 0x7d, PANEL_CS_BOTH);
-    delay(200);
-    b_sendCommandDataSelect8(0x05, 0x00, PANEL_CS_BOTH);
-    delay(10);
-
-    b_sendCommandDataSelect8(0xd8, COG_data[0x1c], PANEL_CS_BOTH); // MS_SYNC
-    b_sendCommandDataSelect8(0xd6, COG_data[0x1d], PANEL_CS_BOTH); // BVSS
-
-    b_sendCommandDataSelect8(0xa7, 0x10, PANEL_CS_BOTH);
-    delay(100);
-    b_sendCommandDataSelect8(0xa7, 0x00, PANEL_CS_BOTH);
-    delay(100);
-
-    // Master
-    b_sendCommandDataSelect8(0x44, 0x00, PANEL_CS_MASTER);
-    b_sendCommandDataSelect8(0x45, 0x80, PANEL_CS_MASTER);
-
-    b_sendCommandDataSelect8(0xa7, 0x10, PANEL_CS_MASTER);
-    delay(100);
-    b_sendCommandDataSelect8(0xa7, 0x00, PANEL_CS_MASTER);
-    delay(100);
-
-    b_sendCommandDataSelect8(0x44, 0x06, PANEL_CS_MASTER);
-    uint8_t indexTemperature = u_temperature * 2 + 0x50; // Temperature 0x82@25C
-    b_sendCommandDataSelect8(0x45, indexTemperature, PANEL_CS_MASTER);
-
-    b_sendCommandDataSelect8(0xa7, 0x10, PANEL_CS_MASTER);
-    delay(100);
-    b_sendCommandDataSelect8(0xa7, 0x00, PANEL_CS_MASTER);
-    delay(100);
-
-    // Slave
-    b_sendCommandDataSelect8(0x44, 0x00, PANEL_CS_SLAVE);
-    b_sendCommandDataSelect8(0x45, 0x80, PANEL_CS_SLAVE);
-
-    b_sendCommandDataSelect8(0xa7, 0x10, PANEL_CS_SLAVE);
-    delay(100);
-    b_sendCommandDataSelect8(0xa7, 0x00, PANEL_CS_SLAVE);
-    delay(100);
-
-    b_sendCommandDataSelect8(0x44, 0x06, PANEL_CS_SLAVE);
-    b_sendCommandDataSelect8(0x45, indexTemperature, PANEL_CS_SLAVE);
-
-    b_sendCommandDataSelect8(0xa7, 0x10, PANEL_CS_SLAVE);
-    delay(100);
-    b_sendCommandDataSelect8(0xa7, 0x00, PANEL_CS_SLAVE);
-    delay(100);
-
-    // After
-    b_sendCommandDataSelect8(0x60, COG_data[0x0b], PANEL_CS_BOTH); // TCON
-    b_sendCommandDataSelect8(0x61, COG_data[0x1b], PANEL_CS_MASTER); // STV_DIR Master only
-    // No DCTL here
-    b_sendCommandDataSelect8(0x02, COG_data[0x11], PANEL_CS_BOTH); // VCOM
-
-    // DC/DC Soft-start
-    // Application note § 3.3 DC/DC soft-start
-    // DRIVER_B = 0x28, DRIVER_8 = 0x20
-    uint8_t offsetFrame = (u_codeDriver == DRIVER_B) ? 0x28 : 0x20;
-
-    // Filter for register 0x09
-    uint8_t _filter09 = 0xff;
-
-    for (uint8_t stage = 0; stage < 4; stage += 1)
-    {
-        uint8_t offset = offsetFrame + 0x08 * stage;
-        uint8_t FORMAT = COG_data[offset] & 0x80;
-        uint8_t REPEAT = COG_data[offset] & 0x7f;
-
-        if (FORMAT > 0) // Format 1
-        {
-            uint8_t PHL_PHH[2];
-            PHL_PHH[0] = COG_data[offset + 1]; // PHL_INI
-            PHL_PHH[1] = COG_data[offset + 2]; // PHH_INI
-            uint8_t PHL_VAR = COG_data[offset + 3];
-            uint8_t PHH_VAR = COG_data[offset + 4];
-            uint8_t BST_SW_a = COG_data[offset + 5] & _filter09;
-            uint8_t BST_SW_b = COG_data[offset + 6] & _filter09;
-            uint8_t DELAY_SCALE = COG_data[offset + 7] & 0x80;
-            uint16_t DELAY_VALUE = COG_data[offset + 7] & 0x7f;
-
-            for (uint8_t i = 0; i < REPEAT; i += 1)
-            {
-                b_sendCommandDataSelect8(0x09, BST_SW_a, PANEL_CS_BOTH);
-                PHL_PHH[0] += PHL_VAR; // PHL
-                PHL_PHH[1] += PHH_VAR; // PHH
-                b_sendIndexDataSelect(0x51, PHL_PHH, 2, PANEL_CS_BOTH);
-                b_sendCommandDataSelect8(0x09, BST_SW_b, PANEL_CS_BOTH);
-
-                if (DELAY_SCALE > 0)
-                {
-                    delay(DELAY_VALUE); // ms
-                }
-                else
-                {
-                    delayMicroseconds(10 * DELAY_VALUE); //10 us
-                }
-            }
-        }
-        else // Format 2
-        {
-            uint8_t BST_SW_a = COG_data[offset + 1] & _filter09;
-            uint8_t BST_SW_b = COG_data[offset + 2] & _filter09;
-            uint8_t DELAY_a_SCALE = COG_data[offset + 3] & 0x80;
-            uint16_t DELAY_a_VALUE = COG_data[offset + 3] & 0x7f;
-            uint8_t DELAY_b_SCALE = COG_data[offset + 4] & 0x80;
-            uint16_t DELAY_b_VALUE = COG_data[offset + 4] & 0x7f;
-
-            for (uint8_t i = 0; i < REPEAT; i += 1)
-            {
-                b_sendCommandDataSelect8(0x09, BST_SW_a, PANEL_CS_BOTH);
-
-                if (DELAY_a_SCALE > 0)
-                {
-                    delay(DELAY_a_VALUE); // ms
-                }
-                else
-                {
-                    delayMicroseconds(10 * DELAY_a_VALUE); // 10 us
-                }
-
-                b_sendCommandDataSelect8(0x09, BST_SW_b, PANEL_CS_BOTH);
-
-                if (DELAY_b_SCALE > 0)
-                {
-                    delay(DELAY_b_VALUE); // ms
-                }
-                else
-                {
-                    delayMicroseconds(10 * DELAY_b_VALUE); // 10 us
-                }
-            }
-        }
-    }
-
-    // Display Refresh Start
-    // Application note § 4. Send updating command
-    b_waitBusy();
-    b_sendCommandDataSelect8(0x15, 0x3c, PANEL_CS_BOTH);
-}
-
-void Screen_EPD_EXT3_Fast::COG_LargeK_powerOff()
-{
-    // Application note § 5. Turn-off DC/DC
-
-    // DC-DC off
-    b_waitBusy();
-
-    // FILM_K already checked
-    b_sendCommandDataSelect8(0x09, 0x7f, PANEL_CS_BOTH);
-    b_sendCommandDataSelect8(0x05, 0x3d, PANEL_CS_BOTH);
-    b_sendCommandDataSelect8(0x09, 0x7e, PANEL_CS_BOTH);
-    delay(60);
-    b_sendCommandDataSelect8(0x09, 0x00, PANEL_CS_BOTH);
-
-    b_waitBusy(HIGH); // added
-}
-//
-// --- End of Large screens with K or P film
+// --- Large screens with K film
 //
 
 //
-// --- Medium screens with K or P film
+// --- End of Large screens with film
+//
+
+//
+// --- Medium screens with K film
 //
 void Screen_EPD_EXT3_Fast::COG_MediumK_reset()
 {
@@ -379,80 +72,149 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_reset()
     b_reset(5, 2, 4, 20, 5); // Medium
 }
 
+typedef struct
+{
+    uint8_t FORMAT_REPEAT;
+    uint8_t PHLINI_BSTSWa;
+    uint8_t PHHINI_BSTSWb;
+    uint8_t PHLVAR_DELAYa;
+    uint8_t PHHVAR_DELAYb;
+    uint8_t BSTSWa_RESERVE;
+    uint8_t BSTSWb_RESERVE;
+    uint8_t DELAY_RESERVE;
+} COG_SOFT_START_DEF;
+
+typedef struct
+{
+    uint8_t LAYOUTREV;
+    uint8_t COG_TYPE;
+    uint8_t VENDOR;
+    uint8_t WAVEFORMREV;
+    uint8_t FPLLOT[6];
+    uint8_t COLOR;
+
+    uint8_t TCON;
+    uint8_t DRFW[4];
+    uint8_t DCTL;
+    uint8_t VCOM;
+    uint8_t VCOM_CTRL;
+    uint8_t OSC_2nd;
+    uint8_t RAM_RW[3];
+    uint8_t DUW[6];
+    uint8_t STV_DIR;
+    uint8_t MS_SYNC;
+    uint8_t BVSS;
+    COG_SOFT_START_DEF SS[4];
+} COG_OTP_USER_DATA;
+
+// Non re-entrant
+COG_OTP_USER_DATA COG_userData;
+
 void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
 {
+    // uint8_t i = sNG;
+
+    // const uint8_t COG_initialData581[128] =
+    // {
+    //     0x16, 0x95, 0x01, 0x01, 0x56, 0x43, 0x52, 0x31,
+    //     0x32, 0x31, 0x00, 0x25, 0x00, 0x1f, 0x14, 0xc7,
+    //     0x00, 0x00, 0x1f, 0x50, 0x04, 0x1f, 0x00, 0x50,
+    //     0x00, 0x1f, 0x03, 0x02, 0x00, 0x02, 0xfe, 0xc3,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0x84, 0x50, 0x00, 0x00, 0x01, 0x1f, 0x9f, 0x81,
+    //     0x8a, 0x0a, 0x00, 0x00, 0x01, 0x1f, 0x9f, 0x81,
+    //     0x8c, 0x0a, 0x02, 0x00, 0x01, 0x7f, 0xff, 0x83,
+    //     0x86, 0x0a, 0x0e, 0xff, 0x00, 0x7f, 0xff, 0x81,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    //     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    // };
+    //
+    // const uint8_t * COG_initialData;
+    //
+    // COG_initialData = COG_initialData581;
+    //
+
+    // uint8_t i = sNG;
+
     // Read OTP
     uint8_t ui8 = 0;
     uint16_t _readBytes = 0;
     u_flagOTP = false;
+    uint8_t COG_initialData[128] = {0};
 
     COG_MediumK_reset();
-    if (b_family == FAMILY_LARGE)
-    {
-        digitalWrite(b_pin.panelCSS, HIGH); // Unselect slave panel
-    }
 
-    // Read OTP
-    switch (u_codeDriver)
-    {
-        case DRIVER_B:
-
-            _readBytes = 128;
-
-            digitalWrite(b_pin.panelDC, LOW); // Command
-            digitalWrite(b_pin.panelCS, LOW); // Select
-            hV_HAL_SPI3_write(0xb9);
-            delay(5);
-            break;
-
-        default:
-
-            mySerial.println();
-            mySerial.println(formatString("hV * OTP failed for screen %i-%cS-0%c", u_codeSize, u_codeFilm, u_codeDriver));
-            while (0x01);
-            break;
-    }
+    digitalWrite(b_pin.panelDC, LOW); // Command
+    digitalWrite(b_pin.panelCS, LOW); // Select
+    hV_HAL_SPI3_write(0xb9);
+    delay(5);
 
     digitalWrite(b_pin.panelDC, HIGH); // Data
     ui8 = hV_HAL_SPI3_read(); // Dummy
+    // hV_HAL_log(LEVEL_DEBUG, "Dummy read 0x%02x", ui8);
 
     // Populate COG_data
     for (uint16_t index = 0; index < _readBytes; index += 1)
     {
-        COG_data[index] = hV_HAL_SPI3_read(); // Read OTP
+        COG_initialData[index] = hV_HAL_SPI3_read(); // Read OTP
     }
 
     // End of OTP reading
     digitalWrite(b_pin.panelCS, HIGH); // Unselect
 
-    // Check
-    uint8_t _chipId;
-    switch (u_eScreen_EPD)
+    uint8_t _chipID = 0x16;
+    if (COG_initialData[0] == _chipID)
     {
-        case eScreen_EPD_343_PS_0B:
-        case eScreen_EPD_343_PS_0B_Touch:
-        case eScreen_EPD_581_PS_0B:
+        COG_userData.LAYOUTREV = COG_initialData[0x00];
+        COG_userData.COG_TYPE = COG_initialData[0x01];
+        COG_userData.VENDOR = COG_initialData[0x02];
+        COG_userData.WAVEFORMREV = COG_initialData[0x03];
+        for (uint8_t i = 0; i < 6; i++)
+        {
+            COG_userData.FPLLOT[i] = COG_initialData[0x04 + i];
+        }
+        COG_userData.COLOR = COG_initialData[0x0a];
 
-            _chipId = 0x10;
-            u_flagOTP = (COG_data[0x00] == _chipId);
-            break;
+        COG_userData.TCON = COG_initialData[0x0b];
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            COG_userData.DRFW[i] = COG_initialData[0x0c + i];
+        }
 
-        case eScreen_EPD_581_KS_0B:
+        COG_userData.DCTL = COG_initialData[0x10];
 
-            _chipId = 0x16;
-            u_flagOTP = (COG_data[0x00] == _chipId);
-            break;
-
-        default:
-
-            _chipId = 0x00;
-            u_flagOTP = false;
-            break;
-    }
-
-    if (u_flagOTP == true)
-    {
+        COG_userData.VCOM = COG_initialData[0x11];
+        COG_userData.VCOM_CTRL = COG_initialData[0x1f];
+        for (uint8_t i = 0; i < 3; i++)
+        {
+            COG_userData.RAM_RW[i] = COG_initialData[0x12 + i];
+        }
+        for (uint8_t i = 0; i < 6; i++)
+        {
+            COG_userData.DUW[i] = COG_initialData[0x15 + i];
+        }
+        COG_userData.STV_DIR = COG_initialData[0x1b];
+        COG_userData.MS_SYNC = COG_initialData[0x1c];
+        COG_userData.BVSS = COG_initialData[0x1d];
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            COG_userData.SS[i].FORMAT_REPEAT = COG_initialData[0x28 + (8 * i)];
+            COG_userData.SS[i].PHLINI_BSTSWa = COG_initialData[0x28 + (8 * i) + 1];
+            COG_userData.SS[i].PHHINI_BSTSWb = COG_initialData[0x28 + (8 * i) + 2];
+            COG_userData.SS[i].PHLVAR_DELAYa = COG_initialData[0x28 + (8 * i) + 3];
+            COG_userData.SS[i].PHHVAR_DELAYb = COG_initialData[0x28 + (8 * i) + 4];
+            COG_userData.SS[i].BSTSWa_RESERVE = COG_initialData[0x28 + (8 * i) + 5];
+            COG_userData.SS[i].BSTSWb_RESERVE = COG_initialData[0x28 + (8 * i) + 6];
+            COG_userData.SS[i].DELAY_RESERVE = COG_initialData[0x28 + (8 * i) + 7];
+        }
+        // i = sOK;
         mySerial.println("hV . OTP check passed");
+        u_flagOTP = true;
     }
     else
     {
@@ -478,34 +240,23 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_sendImageData(uint8_t updateMode)
     FRAMEBUFFER_TYPE nextBuffer = s_newImage;
     FRAMEBUFFER_TYPE previousBuffer = s_newImage + u_pageColourSize;
 
+    uint8_t iDCTL[2];
+    iDCTL[0] = COG_userData.DCTL;
+    iDCTL[1] = 0x00;
+    b_sendIndexData(0x01, &iDCTL[0], 2); //DCTL 0x10 of MTP
+
     // Send image data
-    b_sendIndexData(0x13, &COG_data[0x15], 6); // DUW
-    b_sendIndexData(0x90, &COG_data[0x0c], 4); // DRFW
 
-    // Next frame
-    b_sendIndexData(0x12, &COG_data[0x12], 3); // RAM_RW
-    b_sendIndexData(0x10, nextBuffer, u_pageColourSize); // Next frame
+    b_sendIndexData(0x13, &COG_userData.DUW[0], 6);
+    b_sendIndexData(0x90, &COG_userData.DRFW[0], 4);
 
-    b_sendIndexData(0x12, &COG_data[0x12], 3); // RAM_RW
-    switch (updateMode)
-    {
-        case UPDATE_GLOBAL:
+    b_sendIndexData(0x12, &COG_userData.RAM_RW[0], 3);
+    // send first frame
+    b_sendIndexData(0x10, nextBuffer, u_pageColourSize); // First frame
 
-            // Previous frame = dummy
-            b_sendIndexFixed(0x11, 0x00, u_pageColourSize); // Previous frame = dummy
-
-            break;
-
-        case UPDATE_FAST:
-
-            // Previous frame
-            b_sendIndexData(0x11, previousBuffer, u_pageColourSize); // Next frame
-            break;
-
-        default:
-
-            break;
-    }
+    b_sendIndexData(0x12, &COG_userData.RAM_RW[0], 3);
+    // send second frame
+    b_sendIndexData(0x11, previousBuffer, u_pageColourSize); // Second frame
 
     // Copy next frame to previous frame
     memcpy(previousBuffer, nextBuffer, u_pageColourSize); // Copy displayed next to previous
@@ -513,199 +264,100 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_sendImageData(uint8_t updateMode)
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_update(uint8_t updateMode)
 {
-    // Initial COG
-    // Application note § 3.1 Initial flow chart
-    b_sendCommandData8(0x05, 0x7d);
+    // COG_MediumK_initial();
+    // // _reset(5, 2, 4, 20, 5);
+    // COG_MediumK_getDataOTP(); // get user data from initial data
+
+    uint8_t data4[] = {0x7d};
+    b_sendIndexData(0x05, data4, 1);
     delay(50);
-    b_sendCommandData8(0x05, 0x00);
+    uint8_t data5[] = {0x00};
+    b_sendIndexData(0x05, data5, 1);
     delay(1);
-    b_sendCommandData8(0xd8, COG_data[0x1c]); // MS_SYNC
-    b_sendCommandData8(0xd6, COG_data[0x1d]); // BVSS
-
-    b_sendCommandData8(0xa7, 0x10);
+    b_sendIndexData(0xD8, &COG_userData.MS_SYNC, 1);
+    b_sendIndexData(0xD6, &COG_userData.BVSS, 1);
+    uint8_t data9[] = {0x10};
+    b_sendIndexData(0xa7, data9, 1);
     delay(2);
-    b_sendCommandData8(0xa7, 0x00);
+    b_sendIndexData(0xa7, data5, 1);
     delay(10);
 
-    b_sendCommandData8(0x44, 0x00);
-    b_sendCommandData8(0x45, 0x80);
-
-    b_sendCommandData8(0xa7, 0x10);
+    // Temperature sequence
+    b_sendIndexData(0x44, data5, 1);
+    uint8_t data11[] = {0x80};
+    b_sendIndexData(0x45, data11, 1);
+    b_sendIndexData(0xa7, data9, 1);
     delay(2);
-    b_sendCommandData8(0xa7, 0x00);
+    b_sendIndexData(0xa7, data5, 1);
     delay(10);
+    uint8_t data12[] = {0x06};
+    b_sendIndexData(0x44, data12, 1);
 
-    uint8_t indexTemperature;
-    switch (u_eScreen_EPD)
-    {
-        case eScreen_EPD_343_PS_0B:
-        case eScreen_EPD_343_PS_0B_Touch:
+    uint8_t data13[] = {0xc1};
+    b_sendIndexData(0x45, data13, 1); //>> IF Fast, (0x45, FU_IDX)
 
-            switch (updateMode)
-            {
-                case UPDATE_FAST:
-
-                    indexTemperature = (u_temperature < 22) ? 0xc9 : 0xca;
-                    break;
-
-                case UPDATE_GLOBAL:
-
-                    indexTemperature = 2 * u_temperature + 0x50; // Temperature 0x82@25C
-                    // indexTemperature = (u_temperature > 50) ? 0xb4 : indexTemperature;
-                    indexTemperature = checkRange(indexTemperature, (uint8_t)0x50, (uint8_t)0xb4);
-                    break;
-
-                default:
-
-                    break;
-            }
-
-        case eScreen_EPD_581_PS_0B:
-        case eScreen_EPD_581_KS_0B:
-            // case eScreen_EPD_741_PS_0B:
-            // case eScreen_EPD_741_KS_0B:
-
-            switch (updateMode)
-            {
-                case UPDATE_FAST:
-
-                    indexTemperature = (u_temperature + 0x28) + 0x80;
-                    // indexTemperature = (u_temperature > 50) ? 0xda : indexTemperature;
-                    // indexTemperature = (u_temperature < 0) ? 0xa8 : indexTemperature;
-                    indexTemperature = checkRange(indexTemperature, (uint8_t)0xa8, (uint8_t)0xda);
-                    break;
-
-                case UPDATE_GLOBAL:
-
-                    indexTemperature = u_temperature + 0x28; // Temperature 0x41@25C
-                    // indexTemperature = (u_temperature > 60) ? 0x64 : indexTemperature;
-                    // indexTemperature = (u_temperature < -15) ? 0x19 : indexTemperature;
-                    indexTemperature = checkRange(indexTemperature, (uint8_t)0x19, (uint8_t)0x64);
-                    break;
-
-                default:
-
-                    break;
-            }
-            break;
-
-        default:
-
-            break;
-    }
-
-    b_sendCommandData8(0x44, 0x06);
-    b_sendCommandData8(0x45, indexTemperature);
-
-    b_sendCommandData8(0xa7, 0x10);
+    b_sendIndexData(0xa7, data9, 1);
     delay(2);
-    b_sendCommandData8(0xa7, 0x00);
+    b_sendIndexData(0xa7, data5, 1);
     delay(10);
+    b_sendIndexData(0x60, &COG_userData.TCON, 1);
+    b_sendIndexData(0x61, &COG_userData.STV_DIR, 1);
+    b_sendIndexData(0x02, &COG_userData.VCOM, 1);
+    b_sendIndexData(0x03, &COG_userData.VCOM_CTRL, 1);
 
-    b_sendCommandData8(0x60, COG_data[0x0b]); // TCON
-    b_sendCommandData8(0x61, COG_data[0x1b]); // STV_DIR
-    // No DCTL here
-    b_sendCommandData8(0x02, COG_data[0x11]); // VCOM
-    b_sendCommandData8(0x03, COG_data[0x1f]); // VCOM_CTRL
-
-    // DC/DC Soft-start
-    // Application note § 3.3 DC/DC soft-start
-    // DRIVER_B = 0x28, DRIVER_8 = 0x20
-    uint8_t offsetFrame = 0x28;
-
-    // Filter for register 0x09
-    uint8_t _filter09 = 0xff;
-
-    switch (u_eScreen_EPD)
+    // _DCDC_softStart();
+    uint8_t iPH[2], iREP;
+    for (uint8_t value = 0; value < 4; value++)
     {
-        case eScreen_EPD_343_PS_0B:
-        case eScreen_EPD_343_PS_0B_Touch:
-
-            _filter09 = 0xfb;
-            break;
-
-        default:
-
-            _filter09 = 0xff;
-            break;
-    }
-
-    for (uint8_t stage = 0; stage < 4; stage += 1)
-    {
-        uint8_t offset = offsetFrame + 0x08 * stage;
-        uint8_t FORMAT = COG_data[offset] & 0x80;
-        uint8_t REPEAT = COG_data[offset] & 0x7f;
-
-        if (FORMAT > 0) // Format 1
+        iPH[0] = COG_userData.SS[value].PHLINI_BSTSWa;
+        iPH[1] = COG_userData.SS[value].PHHINI_BSTSWb;
+        if (COG_userData.SS[value].FORMAT_REPEAT & 0x80) // format1
         {
-            uint8_t PHL_PHH[2];
-            PHL_PHH[0] = COG_data[offset + 1]; // PHL_INI
-            PHL_PHH[1] = COG_data[offset + 2]; // PHH_INI
-            uint8_t PHL_VAR = COG_data[offset + 3];
-            uint8_t PHH_VAR = COG_data[offset + 4];
-            uint8_t BST_SW_a = COG_data[offset + 5] & _filter09;
-            uint8_t BST_SW_b = COG_data[offset + 6] & _filter09;
-            uint8_t DELAY_SCALE = COG_data[offset + 7] & 0x80;
-            uint16_t DELAY_VALUE = COG_data[offset + 7] & 0x7f;
-
-            for (uint8_t i = 0; i < REPEAT; i += 1)
+            for (iREP = 0; iREP < (COG_userData.SS[value].FORMAT_REPEAT & 0x7f); iREP++)
             {
-                b_sendCommandData8(0x09, BST_SW_a);
-                PHL_PHH[0] += PHL_VAR; // PHL
-                PHL_PHH[1] += PHH_VAR; // PHH
-                b_sendIndexData(0x51, PHL_PHH, 2);
-                b_sendCommandData8(0x09, BST_SW_b);
-
-                if (DELAY_SCALE > 0)
+                b_sendIndexData(0x09, &COG_userData.SS[value].BSTSWa_RESERVE, 1);
+                iPH[0] += COG_userData.SS[value].PHLVAR_DELAYa;
+                iPH[1] += COG_userData.SS[value].PHHVAR_DELAYb;
+                b_sendIndexData(0x51, iPH, 2);
+                b_sendIndexData(0x09, &COG_userData.SS[value].BSTSWb_RESERVE, 1);
+                if (COG_userData.SS[value].DELAY_RESERVE & 0x80)
                 {
-                    delay(DELAY_VALUE); // ms
+                    delay(COG_userData.SS[value].DELAY_RESERVE & 0x7f); // ms
                 }
-                else
-                {
-                    delayMicroseconds(10 * DELAY_VALUE); // 10 us
-                }
+                // else;
+                delayMicroseconds(10 * COG_userData.SS[value].DELAY_RESERVE & 0x7f); // 10us
             }
         }
-        else // Format 2
+        else // format2
         {
-            uint8_t BST_SW_a = COG_data[offset + 1] & _filter09;
-            uint8_t BST_SW_b = COG_data[offset + 2] & _filter09;
-            uint8_t DELAY_a_SCALE = COG_data[offset + 3] & 0x80;
-            uint16_t DELAY_a_VALUE = COG_data[offset + 3] & 0x7f;
-            uint8_t DELAY_b_SCALE = COG_data[offset + 4] & 0x80;
-            uint16_t DELAY_b_VALUE = COG_data[offset + 4] & 0x7f;
-
-            for (uint8_t i = 0; i < REPEAT; i += 1)
+            for (iREP = 0; iREP < (COG_userData.SS[value].FORMAT_REPEAT & 0x7f); iREP++)
             {
-                b_sendCommandData8(0x09, BST_SW_a);
+                b_sendIndexData(0x09, &COG_userData.SS[value].PHLINI_BSTSWa, 1);
+                if (COG_userData.SS[value].PHLVAR_DELAYa & 0x80)
+                {
+                    delay(COG_userData.SS[value].PHLVAR_DELAYa & 0x7f); // ms
+                }
+                // else;
+                delayMicroseconds(10 * COG_userData.SS[value].PHLVAR_DELAYa & 0x7f); // 10us delaySysTick_10us
 
-                if (DELAY_a_SCALE > 0)
+                b_sendIndexData(0x09, &COG_userData.SS[value].PHHINI_BSTSWb, 1);
+                if (COG_userData.SS[value].PHHVAR_DELAYb & 0x80)
                 {
-                    delay(DELAY_a_VALUE); // ms
+                    delay(COG_userData.SS[value].PHHVAR_DELAYb & 0x7f); // ms
                 }
-                else
-                {
-                    delayMicroseconds(10 * DELAY_a_VALUE); // 10 us
-                }
-
-                b_sendCommandData8(0x09, BST_SW_b);
-
-                if (DELAY_b_SCALE > 0)
-                {
-                    delay(DELAY_b_VALUE); // ms
-                }
-                else
-                {
-                    delayMicroseconds(10 * DELAY_b_VALUE); // 10 us
-                }
+                // else;
+                delayMicroseconds(10 * COG_userData.SS[value].PHHVAR_DELAYb & 0x7f); // 10us delaySysTick_10us
             }
         }
     }
 
-    // Display Refresh Start
-    // Application note § 4 Send updating command
-    b_waitBusy();
-    b_sendCommandData8(0x15, 0x3c);
+    // _displayRefresh();
+    uint8_t data18[] = {0x3c};
+    b_sendIndexData(0x15, data18, 1); //Display Refresh
+    delay(5);
+
+    // _DCDC_softShutdown();
+    // See Screen_EPD_EXT3_Fast::COG_MediumK_powerOff
 }
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_powerOff()
@@ -715,21 +367,37 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_powerOff()
     // DC-DC off
     b_waitBusy();
 
-    // FILM_K already checked
-    b_sendCommandData8(0x09, 0x7f);
-    b_sendCommandData8(0x05, 0x3d);
-    b_sendCommandData8(0x09, 0x7e);
+    // // FILM_K already checked
+    // b_sendCommandData8(0x09, 0x7f);
+    // b_sendCommandData8(0x05, 0x3d);
+    // b_sendCommandData8(0x09, 0x7e);
+    // delay(60);
+    // b_sendCommandData8(0x09, 0x00);
+    uint8_t data19[] = {0x7f};
+    b_sendIndexData(0x09, data19, 1);
+    uint8_t data20[] = {0x3d};
+    b_sendIndexData(0x05, data20, 1);
+    uint8_t data555[] = {0x7e};
+    b_sendIndexData(0x09, data555, 1);
     delay(60);
-    b_sendCommandData8(0x09, 0x00);
+    uint8_t data55[] = {0x00};
+    b_sendIndexData(0x09, data55, 1);
 
-    b_waitBusy(HIGH); // added
+    // b_waitBusy(HIGH); // added
+
+    // digitalWrite(b_pin.panelDC, LOW);
+    // digitalWrite(b_pin.panelCS, LOW);
+    // digitalWrite(b_pin.panelReset, LOW);
+    // digitalWrite(panelON_PIN, LOW); // PANEL_OFF# = 0
+
+    digitalWrite(b_pin.panelCS, HIGH); // CS# = 1
 }
 //
-// --- End of Medium screens with K or P film
+// --- End of Medium screens with K film
 //
 
 //
-// --- Small screens with K or P film
+// --- Small screens with K film
 //
 void Screen_EPD_EXT3_Fast::COG_SmallK_reset()
 {
@@ -819,20 +487,21 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_getDataOTP()
     uint16_t offsetPSR = 0x0000;
 
     digitalWrite(b_pin.panelDC, LOW); // Command
-    digitalWrite(b_pin.panelCS, LOW); // Select
+    digitalWrite(b_pin.panelCS, LOW); // CS low = Select
     hV_HAL_SPI3_write(0xa2);
-    digitalWrite(b_pin.panelCS, HIGH); // Unselect
+    digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
     delay(10);
 
     digitalWrite(b_pin.panelDC, HIGH); // Data
-    digitalWrite(b_pin.panelCS, LOW); // Select
+    digitalWrite(b_pin.panelCS, LOW); // CS low = Select
     ui8 = hV_HAL_SPI3_read(); // Dummy
-    digitalWrite(b_pin.panelCS, HIGH); // Unselect
-    // mySerial.println, "hV . Dummy read 0x%02x", ui8);
+    digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
+    // mySerial.println(formatString("hV . Dummy read 0x%02x", ui8));
 
-    digitalWrite(b_pin.panelCS, LOW); // Select
+    digitalWrite(b_pin.panelCS, LOW); // CS low = Select
     ui8 = hV_HAL_SPI3_read(); // First byte to be checked
-    digitalWrite(b_pin.panelCS, HIGH); // Unselect
+    digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
+    // mySerial.println(formatString("hV . ui 0x%02x", ui8));
 
     // Check bank
     uint8_t bank = ((ui8 == 0xa5) ? 0 : 1);
@@ -907,14 +576,14 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_getDataOTP()
     {
         for (uint16_t index = 1; index < offsetA5; index += 1)
         {
-            digitalWrite(b_pin.panelCS, LOW); // Select
+            digitalWrite(b_pin.panelCS, LOW); // CS low = Select
             ui8 = hV_HAL_SPI3_read();
-            digitalWrite(b_pin.panelCS, HIGH); // Unselect
+            digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
         }
 
-        digitalWrite(b_pin.panelCS, LOW); // Select
+        digitalWrite(b_pin.panelCS, LOW); // CS low = Select
         ui8 = hV_HAL_SPI3_read(); // First byte to be checked
-        digitalWrite(b_pin.panelCS, HIGH); // Unselect
+        digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
 
         if (ui8 != 0xa5)
         {
@@ -945,18 +614,18 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_getDataOTP()
     // Ignore bytes 1..offsetPSR
     for (uint16_t index = offsetA5 + 1; index < offsetPSR; index += 1)
     {
-        digitalWrite(b_pin.panelCS, LOW); // Select
+        digitalWrite(b_pin.panelCS, LOW); // CS low = Select
         ui8 = hV_HAL_SPI3_read();
-        digitalWrite(b_pin.panelCS, HIGH); // Unselect
+        digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
     }
 
     // Populate COG_data
     for (uint16_t index = 0; index < _readBytes; index += 1)
     {
-        digitalWrite(b_pin.panelCS, LOW); // Select
+        digitalWrite(b_pin.panelCS, LOW); // CS low = Select
         ui8 = hV_HAL_SPI3_read(); // Read OTP
         COG_data[index] = ui8;
-        digitalWrite(b_pin.panelCS, HIGH); // Unselect
+        digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
     }
 
     u_flagOTP = true;
@@ -1043,43 +712,33 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_sendImageData(uint8_t updateMode)
     FRAMEBUFFER_TYPE previousBuffer = s_newImage + u_pageColourSize;
 
     // Send image data
-    switch (updateMode)
+    switch (u_eScreen_EPD)
     {
-        case UPDATE_FAST:
+        case eScreen_EPD_150_KS_0J:
+        case eScreen_EPD_152_KS_0J:
 
-            switch (u_eScreen_EPD)
-            {
-                case eScreen_EPD_150_KS_0J:
-                case eScreen_EPD_152_KS_0J:
-
-                    b_sendIndexData(0x24, previousBuffer, u_pageColourSize); // Previous frame, blackBuffer
-                    b_sendIndexData(0x26, nextBuffer, u_pageColourSize); // Next frame, 0x00
-                    break;
-
-                default:
-
-                    // Additional settings for fast update, 154 213 266 370 and 437 screens (s_flag50)
-                    if (s_flag50)
-                    {
-                        b_sendCommandData8(0x50, 0x27); // Vcom and data interval setting
-                    }
-
-                    b_sendIndexData(0x10, previousBuffer, u_pageColourSize); // Previous frame, blackBuffer
-                    b_sendIndexData(0x13, nextBuffer, u_pageColourSize); // Next frame, 0x00
-
-                    // Additional settings for fast update, 154 213 266 370 and 437 screens (s_flag50)
-                    if (s_flag50)
-                    {
-                        b_sendCommandData8(0x50, 0x07); // Vcom and data interval setting
-                    }
-                    break;
-            } // u_eScreen_EPD
+            b_sendIndexData(0x24, previousBuffer, u_pageColourSize); // Previous frame, blackBuffer
+            b_sendIndexData(0x26, nextBuffer, u_pageColourSize); // Next frame
             break;
 
         default:
 
+            // Additional settings for fast update, 154 213 266 370 and 437 screens (s_flag50)
+            if (s_flag50)
+            {
+                b_sendCommandData8(0x50, 0x27); // Vcom and data interval setting
+            }
+
+            b_sendIndexData(0x10, previousBuffer, u_pageColourSize); // Previous frame, blackBuffer
+            b_sendIndexData(0x13, nextBuffer, u_pageColourSize); // Next frame
+
+            // Additional settings for fast update, 154 213 266 370 and 437 screens (s_flag50)
+            if (s_flag50)
+            {
+                b_sendCommandData8(0x50, 0x07); // Vcom and data interval setting
+            }
             break;
-    } // updateMode
+    } // u_eScreen_EPD
 
     // Copy next frame to previous frame
     memcpy(previousBuffer, nextBuffer, u_pageColourSize); // Copy displayed next to previous
@@ -1130,7 +789,7 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_powerOff()
     }
 }
 //
-// --- End of Small screens with K or P film
+// --- End of Small screens with K film
 //
 /// @endcond
 //
@@ -1160,7 +819,7 @@ void Screen_EPD_EXT3_Fast::begin()
     // Checks
     switch (u_codeFilm)
     {
-        case FILM_K: // BW, fast update and wide temperature
+        case FILM_K: // BW, wide temperature and fast update
 
             break;
 
@@ -1195,18 +854,18 @@ void Screen_EPD_EXT3_Fast::begin()
     // Configure board
     switch (u_codeSize)
     {
-        case SIZE_343: // 3.43"
+        // case SIZE_343: // 3.43"
         case SIZE_581: // 5.81"
-        case SIZE_741: // 7.41"
+            // case SIZE_741: // 7.41"
 
             b_begin(b_pin, FAMILY_MEDIUM, 0);
             break;
 
-        case SIZE_969: // 9.69"
-        case SIZE_1198: // 11.98"
-
-            b_begin(b_pin, FAMILY_LARGE, 50);
-            break;
+        // case SIZE_969: // 9.69"
+        // case SIZE_1198: // 11.98"
+        //
+        //    b_begin(b_pin, FAMILY_LARGE, 50);
+        //    break;
 
         default:
 
@@ -1345,7 +1004,8 @@ void Screen_EPD_EXT3_Fast::begin()
     v_screenDiagonal = u_codeSize;
 
     // Report
-    mySerial.println(formatString("hV = Screen %s %ix%i", WhoAmI().c_str(), screenSizeX(), screenSizeY()));
+    mySerial.println(formatString("hV = Screen %s", WhoAmI().c_str()));
+    mySerial.println(formatString("hV = Size %ix%i", screenSizeX(), screenSizeY()));
     mySerial.println(formatString("hV = Number %i-%cS-0%c", u_codeSize, u_codeFilm, u_codeDriver));
     mySerial.println(formatString("hV = PDLS %s v%i.%i.%i", SCREEN_EPD_EXT3_VARIANT, SCREEN_EPD_EXT3_RELEASE / 100, (SCREEN_EPD_EXT3_RELEASE / 10) % 10, SCREEN_EPD_EXT3_RELEASE % 10));
     mySerial.println();
@@ -1382,7 +1042,10 @@ void Screen_EPD_EXT3_Fast::begin()
 
     setTemperatureC(25); // 25 Celsius = 77 Fahrenheit
     b_fsmPowerScreen = FSM_OFF;
-    setPowerProfile(POWER_MODE_MANUAL, POWER_SCOPE_GPIO_ONLY);
+    if (b_pin.panelPower != NOT_CONNECTED)
+    {
+        setPowerProfile(POWER_MODE_MANUAL, POWER_SCOPE_GPIO_ONLY);
+    }
 
     // Turn SPI on, initialise GPIOs and set GPIO levels
     // Reset panel and get tables
@@ -1455,24 +1118,20 @@ void Screen_EPD_EXT3_Fast::resume()
             s_reset(); // Reset
         }
 
-        // Start SPI
+        // Start SPI, with unicity check
         switch (u_eScreen_EPD)
         {
             case eScreen_EPD_150_KS_0J:
-            case eScreen_EPD_152_KS_0J:
-
-                hV_HAL_SPI_begin(16000000); // 1.52" tested with 4, 8, 16 and 32 MHz, with unicity check
-                break;
-
-            case eScreen_EPD_206_KS_0E:
+            case eScreen_EPD_152_KS_0J: // 1.52" tested with 4, 8, 16 and 32 MHz
+            case eScreen_EPD_206_KS_0E: // 2.06" tested with 4, 8 and 16 MHz
             case eScreen_EPD_290_KS_0F:
 
-                hV_HAL_SPI_begin(16000000); // 2.06" tested with 4, 8 and 16 MHz, with unicity check
+                hV_HAL_SPI_begin(16000000);
                 break;
 
             default:
 
-                hV_HAL_SPI_begin(); // Standard 8 MHz, with unicity check
+                hV_HAL_SPI_begin(); // Standard 8 MHz
                 break;
         }
     }
@@ -1482,10 +1141,10 @@ void Screen_EPD_EXT3_Fast::s_reset()
 {
     switch (b_family)
     {
-        case FAMILY_LARGE:
-
-            COG_LargeK_reset();
-            break;
+        //         case FAMILY_LARGE:
+        //
+        //             COG_LargeK_reset();
+        //             break;
 
         case FAMILY_MEDIUM:
 
@@ -1512,10 +1171,10 @@ void Screen_EPD_EXT3_Fast::s_getDataOTP()
     // Get data OTP
     switch (b_family)
     {
-        case FAMILY_LARGE:
-
-            COG_LargeK_getDataOTP();
-            break;
+        //         case FAMILY_LARGE:
+        //
+        //             COG_LargeK_getDataOTP();
+        //             break;
 
         case FAMILY_MEDIUM:
 
@@ -1543,13 +1202,13 @@ void Screen_EPD_EXT3_Fast::s_flush(uint8_t updateMode)
 
     switch (b_family)
     {
-        case FAMILY_LARGE:
-
-            COG_LargeK_initial(updateMode); // Initialise
-            COG_LargeK_sendImageData(updateMode); // Send image data
-            COG_LargeK_update(updateMode); // Update
-            COG_LargeK_powerOff(); // Power off
-            break;
+        //         case FAMILY_LARGE:
+        //
+        //             COG_LargeK_initial(updateMode); // Initialise
+        //             COG_LargeK_sendImageData(updateMode); // Send image data
+        //             COG_LargeK_update(updateMode); // Update
+        //             COG_LargeK_powerOff(); // Power off
+        //             break;
 
         case FAMILY_MEDIUM:
 

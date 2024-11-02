@@ -1,5 +1,5 @@
 ///
-/// @file Example_Fast_Speed.ino
+/// @file Fast_Speed.ino
 /// @brief Protocol for speed test
 ///
 /// @details Project Pervasive Displays Library Suite
@@ -22,8 +22,7 @@
 ///
 
 // Screen
-// #include "PDLS_EXT3_Basic_Global.h"
-#include "PDLS_EXT3_Basic_Fast.h"
+#include "PDLS_EXT3_Basic_Wide.h"
 
 // SDK
 // #include <Arduino.h>
@@ -42,7 +41,7 @@
 // Define constants and variables
 // Define constants and variables
 // Screen_EPD_EXT3 myScreen(eScreen_EPD_271_CS_09, boardRaspberryPiPico_RP2040);
-Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_PS_09, boardRaspberryPiPico_RP2040);
+Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_KS_09, boardRaspberryPiPico_RP2040);
 
 // Prototypes
 

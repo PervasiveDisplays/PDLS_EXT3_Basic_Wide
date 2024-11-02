@@ -1,6 +1,6 @@
 ///
 /// @file Screen_EPD_EXT3.h
-/// @brief Driver for Pervasive Displays iTC monochrome screens with embedded fast update and wide temperature, and EXT3 or EXT3.1 board
+/// @brief Driver for Pervasive Displays iTC monochrome screens with wide temperature and embedded fast update, and EXT3 or EXT3.1 board
 ///
 /// @details Project Pervasive Displays Library Suite
 /// @n Based on highView technology
@@ -12,9 +12,11 @@
 /// * Feature: none
 ///
 /// @n Supported screens with embedded fast update
-/// * 2.06 reference xE2206KS0Ex
-/// * 2.90 reference xE2290KS0Fx
-/// * For screens with film `PS`, embedded fast update, see PDLS_EXT3_Advanced_Fast
+/// * 2.06 reference 206_KS_0E
+/// * 2.90 reference 290_KS_0F
+/// * 5.81 reference 581_KS_06
+///
+/// * For screens with film `P`, embedded fast update, see PDLS_EXT3_Advanced_Fast
 ///
 /// @author Rei Vilo
 /// @date 21 Sep 2024
@@ -224,7 +226,7 @@ class Screen_EPD_EXT3_Fast final : public hV_Screen_Buffer, public hV_Utilities_
 
     ///
     /// @brief Update the screen
-    /// @param updateMode update mode, default = UPDATE_FAST, otherwise UPDATE_GLOBAL
+    /// @param updateMode update mode, default = UPDATE_FAST
     ///
     void s_flush(uint8_t updateMode = UPDATE_FAST);
 
@@ -256,12 +258,12 @@ class Screen_EPD_EXT3_Fast final : public hV_Screen_Buffer, public hV_Utilities_
     // * Other functions specific to the screen
     uint8_t COG_data[128]; // OTP
 
-    void COG_LargeK_reset();
-    void COG_LargeK_getDataOTP();
-    void COG_LargeK_initial(uint8_t updateMode);
-    void COG_LargeK_sendImageData(uint8_t updateMode);
-    void COG_LargeK_update(uint8_t updateMode);
-    void COG_LargeK_powerOff();
+    // void COG_LargeK_reset();
+    // void COG_LargeK_getDataOTP();
+    // void COG_LargeK_initial(uint8_t updateMode);
+    // void COG_LargeK_sendImageData(uint8_t updateMode);
+    // void COG_LargeK_update(uint8_t updateMode);
+    // void COG_LargeK_powerOff();
 
     void COG_MediumK_reset();
     void COG_MediumK_getDataOTP();

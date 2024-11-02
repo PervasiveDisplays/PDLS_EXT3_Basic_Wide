@@ -1,5 +1,5 @@
 ///
-/// @file Example_Fast_Temperature.ino
+/// @file Fast_Temperature.ino
 /// @brief Example of features for fast edition
 ///
 /// @details Library for Pervasive Displays EXT3 - Basic level
@@ -17,7 +17,7 @@
 ///
 
 // Screen
-#include "PDLS_EXT3_Basic_Fast.h"
+#include "PDLS_EXT3_Basic_Wide.h"
 
 // SDK
 // #include <Arduino.h>
@@ -34,7 +34,7 @@
 // Define structures and classes
 
 // Define variables and constants
-Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_PS_09, boardRaspberryPiPico_RP2040);
+Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_KS_09, boardRaspberryPiPico_RP2040);
 // Screen_EPD_EXT3_Fast myScreen(eScreen_EPD_271_KS_09, boardRaspberryPiPico_RP2040);
 
 // Prototypes
