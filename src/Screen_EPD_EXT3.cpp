@@ -108,6 +108,7 @@ typedef struct
     COG_SOFT_START_DEF SS[4];
 } COG_OTP_USER_DATA;
 
+// Non re-entrant
 COG_OTP_USER_DATA COG_userData;
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
@@ -214,14 +215,21 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
             COG_userData.SS[i].DELAY_RESERVE = COG_initialData[0x28 + (8 * i) + 7];
         }
         // i = sOK;
-        // u_flagOTP = true;
+        mySerial.println("hV . OTP check passed");
+        u_flagOTP = true;
+    }
+    else
+    {
+        mySerial.println();
+        mySerial.println(formatString("hV * OTP check failed - First byte 0x%02x, expected 0x%04x", COG_data[0x00], _chipId));
+        while (0x01);
     }
 }
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_initial(uint8_t updateMode)
 {
     uint8_t workDCTL[2];
-    workDCTL[0] = COG_userData.DCTL; // DCTL
+    workDCTL[0] = COG_data[0x10]; // DCTL
     workDCTL[1] = 0x00;
 
     // FILM_K already checked
@@ -345,7 +353,7 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_update(uint8_t updateMode)
         }
     }
 
-    // _displayRefresh();
+    // b_waitBusy();
     uint8_t data18[] = {0x3c};
     b_sendIndexData(0x15, data18, 1); //Display Refresh
     delay(5);
@@ -378,12 +386,12 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_powerOff()
     b_sendIndexData(0x09, data55, 1);
 
     // b_waitBusy(HIGH); // added
-/*
-    digitalWrite(b_pin.panelDC, LOW);
-    digitalWrite(b_pin.panelCS, LOW);
-    digitalWrite(b_pin.panelReset, LOW);
+
+    // digitalWrite(b_pin.panelDC, LOW);
+    // digitalWrite(b_pin.panelCS, LOW);
+    // digitalWrite(b_pin.panelReset, LOW);
     // digitalWrite(panelON_PIN, LOW); // PANEL_OFF# = 0
-*/
+
     digitalWrite(b_pin.panelCS, HIGH); // CS# = 1
 }
 //
