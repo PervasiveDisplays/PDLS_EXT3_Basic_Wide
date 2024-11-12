@@ -19,7 +19,7 @@
 /// * For screens with film `P`, embedded fast update, see PDLS_EXT3_Advanced_Fast
 ///
 /// @author Rei Vilo
-/// @date 12 Nov 2024
+/// @date 04 Nov 2024
 /// @version 808
 ///
 /// @copyright (c) Rei Vilo, 2010-2024
