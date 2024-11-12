@@ -108,6 +108,7 @@ typedef struct
     COG_SOFT_START_DEF SS[4];
 } COG_OTP_USER_DATA;
 
+// Non re-entrant
 COG_OTP_USER_DATA COG_userData;
 
 void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
@@ -158,7 +159,7 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
     ui8 = hV_HAL_SPI3_read(); // Dummy
     // hV_HAL_log(LEVEL_DEBUG, "Dummy read 0x%02x", ui8);
 
-    // Populate COG_data
+    // Populate COG_initialData
     for (uint16_t index = 0; index < _readBytes; index += 1)
     {
         COG_initialData[index] = hV_HAL_SPI3_read(); // Read OTP
@@ -214,7 +215,14 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_getDataOTP()
             COG_userData.SS[i].DELAY_RESERVE = COG_initialData[0x28 + (8 * i) + 7];
         }
         // i = sOK;
+        mySerial.println("hV . OTP check passed");
         // u_flagOTP = true;
+    }
+    else
+    {
+        mySerial.println();
+        mySerial.println(formatString("hV * OTP check failed - First byte 0x%02x, expected 0x%04x", COG_initialData[0x00], _chipId));
+        while (0x01);
     }
 }
 
@@ -240,17 +248,16 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_sendImageData(uint8_t updateMode)
     b_sendIndexData(0x01, &iDCTL[0], 2); //DCTL 0x10 of MTP
 
     // Send image data
-
     b_sendIndexData(0x13, &COG_userData.DUW[0], 6);
     b_sendIndexData(0x90, &COG_userData.DRFW[0], 4);
 
+    // Next frame
     b_sendIndexData(0x12, &COG_userData.RAM_RW[0], 3);
-    // send first frame
-    b_sendIndexData(0x10, nextBuffer, u_pageColourSize); // First frame
+    b_sendIndexData(0x10, nextBuffer, u_pageColourSize); // Next frame
 
+    // Previous frame or dummy
     b_sendIndexData(0x12, &COG_userData.RAM_RW[0], 3);
-    // send second frame
-    b_sendIndexData(0x11, previousBuffer, u_pageColourSize); // Second frame
+    b_sendIndexData(0x11, previousBuffer, u_pageColourSize); // Previous frame
 
     // Copy next frame to previous frame
     memcpy(previousBuffer, nextBuffer, u_pageColourSize); // Copy displayed next to previous
@@ -345,7 +352,7 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_update(uint8_t updateMode)
         }
     }
 
-    // _displayRefresh();
+    b_waitBusy();
     uint8_t data18[] = {0x3c};
     b_sendIndexData(0x15, data18, 1); //Display Refresh
     delay(5);
@@ -378,13 +385,13 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_powerOff()
     b_sendIndexData(0x09, data55, 1);
 
     // b_waitBusy(HIGH); // added
-/*
-    digitalWrite(b_pin.panelDC, LOW);
-    digitalWrite(b_pin.panelCS, LOW);
-    digitalWrite(b_pin.panelReset, LOW);
-    // digitalWrite(panelON_PIN, LOW); // PANEL_OFF# = 0
-*/
-    digitalWrite(b_pin.panelCS, HIGH); // CS# = 1
+    /*
+        hV_HAL_GPIO_write(b_pin.panelDC, LOW);
+        hV_HAL_GPIO_write(b_pin.panelCS, LOW);
+        hV_HAL_GPIO_write(b_pin.panelReset, LOW);
+        // hV_HAL_GPIO_write(panelON_PIN, LOW); // PANEL_OFF# = 0
+    */
+    // hV_HAL_GPIO_write(b_pin.panelCS, HIGH); // CS# = 1
 }
 //
 // --- End of Medium screens with K film
@@ -495,7 +502,7 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_getDataOTP()
     digitalWrite(b_pin.panelCS, LOW); // CS low = Select
     ui8 = hV_HAL_SPI3_read(); // First byte to be checked
     digitalWrite(b_pin.panelCS, HIGH); // CS high = Unselect
-    // mySerial.println(formatString("hV . ui 0x%02x", ui8));
+    // mySerial.println(formatString("hV . ui8 0x%02x", ui8));
 
     // Check bank
     uint8_t bank = ((ui8 == 0xa5) ? 0 : 1);
@@ -850,7 +857,7 @@ void Screen_EPD_EXT3_Fast::begin()
     {
         // case SIZE_343: // 3.43"
         case SIZE_581: // 5.81"
-            // case SIZE_741: // 7.41"
+        case SIZE_741: // 7.41"
 
             b_begin(b_pin, FAMILY_MEDIUM, 0);
             break;
@@ -970,12 +977,12 @@ void Screen_EPD_EXT3_Fast::begin()
             v_screenSizeH = 256; // h = small size
             break;
 
-        //         case SIZE_741: // 7.41"
-        //
-        //             v_screenSizeV = 800; // v = wide size
-        //             v_screenSizeH = 480; // h = small size
-        //             break;
-        //
+        case SIZE_741: // 7.41"
+        
+            v_screenSizeV = 800; // v = wide size
+            v_screenSizeH = 480; // h = small size
+            break;
+
         //         case SIZE_969: // 9.69"
         //
         //             v_screenSizeV = 672; // v = wide size
@@ -1189,10 +1196,10 @@ void Screen_EPD_EXT3_Fast::s_getDataOTP()
 void Screen_EPD_EXT3_Fast::s_flush(uint8_t updateMode)
 {
     // Resume
-    if (b_fsmPowerScreen != FSM_ON)
-    {
-        resume();
-    }
+    // if (b_fsmPowerScreen != FSM_ON)
+    // {
+    resume();
+    // }
 
     switch (b_family)
     {
