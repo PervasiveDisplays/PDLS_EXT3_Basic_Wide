@@ -386,12 +386,12 @@ void Screen_EPD_EXT3_Fast::COG_MediumK_powerOff()
 
     // b_waitBusy(HIGH); // added
     /*
-        hV_HAL_GPIO_write(b_pin.panelDC, LOW);
-        hV_HAL_GPIO_write(b_pin.panelCS, LOW);
-        hV_HAL_GPIO_write(b_pin.panelReset, LOW);
-        // hV_HAL_GPIO_write(panelON_PIN, LOW); // PANEL_OFF# = 0
+        digitalWrite(b_pin.panelDC, LOW);
+        digitalWrite(b_pin.panelCS, LOW);
+        digitalWrite(b_pin.panelReset, LOW);
+        // digitalWrite(panelON_PIN, LOW); // PANEL_OFF# = 0
     */
-    // hV_HAL_GPIO_write(b_pin.panelCS, HIGH); // CS# = 1
+    // digitalWrite(b_pin.panelCS, HIGH); // CS# = 1
 }
 //
 // --- End of Medium screens with K film
