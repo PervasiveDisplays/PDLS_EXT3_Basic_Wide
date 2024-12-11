@@ -6,12 +6,21 @@
 /// @n Based on highView technology
 ///
 /// @author Rei Vilo
-/// @date 21 Mar 2024
-/// @version 801
+/// @date 21 Nov 2024
+/// @version 810
 ///
 /// @copyright (c) Rei Vilo, 2010-2024
 /// @copyright Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 /// @copyright For exclusive use with Pervasive Displays screens
+///
+/// * Basic edition: for hobbyists and for basic usage
+/// @n Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+///
+/// * Evaluation edition: for professionals or organisations, no commercial usage
+/// @n All rights reserved
+///
+/// * Commercial edition: for professionals or organisations, commercial usage
+/// @n All rights reserved
 ///
 /// @see ReadMe.txt for references
 /// @n
@@ -77,7 +86,7 @@ void displayWhoAmI()
     y += dy;
     myScreen.gText(x, y, formatString("Size %i x %i", myScreen.screenSizeX(), myScreen.screenSizeY()));
     y += dy;
-    myScreen.gText(x, y, myScreen.screenNumber());
+    myScreen.gText(x, y, formatString("Number %s", myScreen.screenNumber()));
     y += dy;
     myScreen.gText(x, y, formatString("PDLS %s v%i.%i.%i", SCREEN_EPD_EXT3_VARIANT, SCREEN_EPD_EXT3_RELEASE / 100, (SCREEN_EPD_EXT3_RELEASE / 10) % 10, SCREEN_EPD_EXT3_RELEASE % 10));
     y += dy;
@@ -127,16 +136,15 @@ void setup()
 
 #if (DISPLAY_WHOAMI == 1)
 
-    mySerial.println("Who Am I... ");
+    mySerial.println("DISPLAY_WHOAMI... ");
     myScreen.clear();
     displayWhoAmI();
     wait(8);
 
 #endif // DISPLAY_WHOAMI
 
-    mySerial.println("White... ");
-    myScreen.clear();
-    myScreen.flush();
+    mySerial.println("Regenerate... ");
+    myScreen.regenerate();
 
     mySerial.println("=== ");
     mySerial.println();
