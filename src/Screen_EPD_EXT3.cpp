@@ -39,6 +39,7 @@
 // Release 805: Improved stability
 // Release 806: New library for Wide temperature only
 // Release 808: Improved stability
+// Release 811: Added 437_KS_0C not tested
 //
 
 // Library header
@@ -543,6 +544,7 @@ void Screen_EPD_EXT3_Fast::COG_SmallK_getDataOTP()
         case eScreen_EPD_370_PS_0C:
         case eScreen_EPD_370_PS_0C_Touch:
         case eScreen_EPD_437_PS_0C:
+        case eScreen_EPD_437_KS_0C: // Not tested
 
             offsetPSR = (bank == 0) ? 0x0fb4 : 0x1fb4;
             offsetA5 = (bank == 0) ? 0x0000 : 0x1000;
