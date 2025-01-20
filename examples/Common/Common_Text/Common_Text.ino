@@ -6,10 +6,10 @@
 /// @n Based on highView technology
 ///
 /// @author Rei Vilo
-/// @date 21 Nov 2024
-/// @version 810
+/// @date 21 Jan 2025
+/// @version 812
 ///
-/// @copyright (c) Rei Vilo, 2010-2024
+/// @copyright (c) Rei Vilo, 2010-2025
 /// @copyright All rights reserved
 /// @copyright For exclusive use with Pervasive Displays screens
 ///
@@ -40,6 +40,7 @@
 #include "hV_Configuration.h"
 
 // Set parameters
+#define DISPLAY_CHARACTERS 1
 
 // Define structures and classes
 
@@ -64,6 +65,8 @@ void wait(uint8_t second)
 }
 
 // Functions
+#if (DISPLAY_CHARACTERS == 1)
+
 ///
 /// @brief Characters test screen
 /// @param flag true = default = perform flush, otherwise no
@@ -115,6 +118,8 @@ void displayCharacters(bool flag = true)
     myScreen.flush();
 }
 
+#endif // DISPLAY_CHARACTERS
+
 // Add setup code
 ///
 /// @brief Setup
@@ -130,16 +135,21 @@ void setup()
     mySerial.println();
 
     // Start
-    mySerial.println("begin... ");
+    mySerial.println("begin");
     myScreen.begin();
     mySerial.println(formatString("%s %ix%i", myScreen.WhoAmI().c_str(), myScreen.screenSizeX(), myScreen.screenSizeY()));
 
-    mySerial.println("Characters... ");
+    // Example
+#if (DISPLAY_CHARACTERS == 1)
+
+    mySerial.println("DISPLAY_CHARACTERS");
     myScreen.clear();
     displayCharacters();
     wait(8);
 
-    mySerial.println("Regenerate... ");
+#endif // DISPLAY_CHARACTERS
+
+    mySerial.println("Regenerate");
     myScreen.regenerate();
 
     mySerial.println("=== ");

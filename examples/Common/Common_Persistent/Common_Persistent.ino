@@ -9,7 +9,7 @@
 /// @date 21 Oct 2023
 /// @version 810
 ///
-/// @copyright (c) Rei Vilo, 2010-2024
+/// @copyright (c) Rei Vilo, 2010-2025
 /// @copyright Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 /// @copyright For exclusive use with Pervasive Displays screens
 ///
@@ -118,13 +118,13 @@ void setup()
         delay(250);
     }
 
-    mySerial.println("begin... ");
+    mySerial.println("begin");
     myScreen.begin();
     mySerial.println(formatString("%s %ix%i", myScreen.WhoAmI().c_str(), myScreen.screenSizeX(), myScreen.screenSizeY()));
 
 #if (DISPLAY_PERSISTENT == 1)
 
-    mySerial.println("DISPLAY_PERSISTENT... ");
+    mySerial.println("DISPLAY_PERSISTENT");
     myScreen.clear();
     displayPersistent();
     wait(2);

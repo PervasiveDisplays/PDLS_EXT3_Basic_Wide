@@ -6,10 +6,10 @@
 /// @n Based on highView technology
 ///
 /// @author Rei Vilo
-/// @date 21 Nov 2024
-/// @version 810
+/// @date 21 Jan 2025
+/// @version 812
 ///
-/// @copyright (c) Rei Vilo, 2010-2024
+/// @copyright (c) Rei Vilo, 2010-2025
 /// @copyright All rights reserved
 /// @copyright For exclusive use with Pervasive Displays screens
 ///
@@ -107,16 +107,16 @@ void setup()
     mySerial.println();
 
     // Start
-    mySerial.print("begin... ");
+    mySerial.print("begin");
     myScreen.begin();
     mySerial.println(formatString("%s %ix%i", myScreen.WhoAmI().c_str(), myScreen.screenSizeX(), myScreen.screenSizeY()));
 
-    mySerial.print("Forms... ");
+    mySerial.print("Forms");
     myScreen.clear();
     displayForms();
     wait(8);
 
-    mySerial.print("Regenerate... ");
+    mySerial.print("Regenerate");
     myScreen.regenerate();
 
     mySerial.println("=== ");
